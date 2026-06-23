@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1117">
+<title>Steuerbelege</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #222536;
+  --border: #2e3248;
+  --accent: #5b8dee;
+  --accent2: #3d6fd4;
+  --green: #34d399;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --text: #e8eaf0;
+  --text2: #8b90a7;
+  --text3: #5a5f78;
+  --r: 12px;
+  --rs: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+.tabs { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 200; height: 60px; }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; color: var(--text3); cursor: pointer; transition: color .15s; border: none; background: none; font-family: 'Inter', sans-serif; }
+.tab.active { color: var(--accent); }
+.tab-icon { font-size: 20px; }
+
+.screen { display: none; min-height: calc(100vh - 60px); flex-direction: column; }
+.screen.active { display: flex; }
+
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 16px 10px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 100; }
+.header-title { font-size: 17px; font-weight: 600; flex: 1; }
+.header-sub { font-size: 11px; color: var(--text3); }
+
+.icon-btn { background: none; border: none; color: var(--text2); cursor: pointer; padding: 7px; border-radius: var(--rs); font-size: 18px; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.icon-btn:hover, .icon-btn:active { background: var(--surface2); }
+
+.folder-bar { display: flex; gap: 6px; padding: 10px 14px; overflow-x: auto; background: var(--surface); border-bottom: 1px solid var(--border); scrollbar-width: none; }
+.folder-bar::-webkit-scrollbar { display: none; }
+.folder-pill { flex-shrink: 0; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); color: var(--text2); background: var(--surface2); white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all .15s; }
+.folder-pill.active { background: var(--accent); border-color: var(--accent); color: white; }
+.folder-pill-del { font-size: 11px; opacity: .6; }
+.folder-pill-del:hover { opacity: 1; color: var(--red); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 14px; }
+
+.doc-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r); overflow: hidden; cursor: pointer; transition: border-color .2s, transform .15s; position: relative; }
+.doc-card:active { transform: scale(.97); }
+.doc-card.sel { border-color: var(--accent); background: rgba(91,141,238,.08); }
+
+.doc-thumb { height: 110px; background: var(--surface2); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+.doc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.doc-thumb-ph { font-size: 36px; opacity: .25; }
+
+.doc-check { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 2px solid white; display: none; align-items: center; justify-content: center; font-size: 11px; color: white; z-index: 2; }
+.doc-card.sel .doc-check { display: flex; }
+
+.quick-btns { position: absolute; top: 5px; right: 5px; display: flex; gap: 3px; opacity: 0; transition: opacity .15s; }
+.doc-card:hover .quick-btns { opacity: 1; }
+.qbtn { background: rgba(0,0,0,.7); border: none; border-radius: 5px; padding: 3px 6px; font-size: 13px; cursor: pointer; color: white; }
+
+.doc-info { padding: 8px 10px; }
+.doc-name { font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.doc-meta { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; display: flex; justify-content: space-between; align-items: center; }
+.cat-tag { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: var(--surface2); color: var(--text3); }
+.cat-tankquittung { background: rgba(251,191,36,.15); color: var(--yellow); }
+.cat-reise { background: rgba(91,141,238,.15); color: var(--accent); }
+.cat-bueromaterial { background: rgba(52,211,153,.15); color: var(--green); }
+.cat-bewirtung { background: rgba(248,113,113,.15); color: var(--red); }
+
+.empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text3); gap: 8px; padding: 40px; text-align: center; }
+.empty-icon { font-size: 48px; opacity: .3; }
+.empty-text { font-size: 15px; color: var(--text2); }
+.empty-sub { font-size: 13px; }
+
+.fab { position: fixed; bottom: 76px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); border: none; color: white; font-size: 26px; cursor: pointer; box-shadow: 0 4px 20px rgba(91,141,238,.4); display: flex; align-items: center; justify-content: center; z-index: 199; transition: transform .2s; }
+.fab:active { transform: scale(.93); }
+
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 1000; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
+.overlay.open { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r) var(--r) 0 0; width: 100%; max-width: 500px; max-height: 92vh; overflow-y: auto; display: flex; flex-direction: column; animation: slideUp .25s ease; }
+@keyframes slideUp { from { transform: translateY(40px); opacity: 0; } }
+.modal.center { border-radius: var(--r); margin: auto; max-height: 88vh; }
+.mhdr { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.mhdr-title { font-size: 15px; font-weight: 600; flex: 1; }
+.mbody { padding: 18px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.mfoot { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+
+label { font-size: 12px; color: var(--text2); font-weight: 500; display: block; margin-bottom: 5px; }
+input[type=text], input[type=date], input[type=password], input[type=url], select {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: var(--rs); padding: 10px 12px; font-size: 14px; color: var(--text); outline: none; font-family: 'Inter', sans-serif; transition: border-color .2s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input[type=password] { font-family: 'DM Mono', monospace; }
+
+.btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--rs); padding: 9px 14px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background .15s; white-space: nowrap; font-family: 'Inter', sans-serif; }
+.btn:hover, .btn:active { background: var(--border); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+.btn.primary:hover { background: var(--accent2); }
+.btn.danger { color: var(--red); border-color: rgba(248,113,113,.3); }
+.btn.danger:hover { background: rgba(248,113,113,.1); }
+.btn.success { color: var(--green); border-color: rgba(52,211,153,.3); }
+.btn.success:hover { background: rgba(52,211,153,.1); }
+.btn.full { width: 100%; justify-content: center; padding: 12px; }
+
+#crop-wrap { position: relative; overflow: hidden; border-radius: var(--rs); background: var(--bg); touch-action: none; }
+#crop-canvas { display: block; width: 100%; }
+.preview-img { width: 100%; max-height: 55vh; object-fit: contain; border-radius: var(--rs); background: var(--bg); }
+.scan-row { background: var(--surface2); border-radius: var(--rs); padding: 10px 12px; font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px; }
+.prog-bar { height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; width: 0%; }
+
+.settings-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; margin: 14px; display: flex; flex-direction: column; gap: 14px; }
+.settings-title { font-size: 13px; font-weight: 600; color: var(--text2); padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.sql-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--rs); padding: 12px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text2); white-space: pre; overflow-x: auto; line-height: 1.6; }
+
+#toast { position: fixed; bottom: 74px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rs); padding: 10px 16px; font-size: 13px; z-index: 3000; opacity: 0; transition: opacity .2s, transform .2s; white-space: nowrap; max-width: 90vw; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.spin { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: rot .7s linear infinite; display: inline-block; flex-shrink: 0; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.ai-badge { font-size: 11px; background: rgba(91,141,238,.2); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ══ BELEGE ══ -->
+<div class="screen active" id="screen-belege">
+  <div class="header">
+    <span style="font-size:22px">🧾</span>
+    <div style="flex:1">
+      <div class="header-title" id="view-title">Alle Belege</div>
+      <div class="header-sub" id="view-sub">0 Belege</div>
+    </div>
+    <button class="icon-btn" id="btn-dl" onclick="downloadSelected()" style="display:none" title="Download">⬇</button>
+    <button class="icon-btn" id="btn-mv" onclick="moveSelected()" style="display:none" title="Verschieben">📁</button>
+    <button class="icon-btn" id="btn-del" onclick="deleteSelected()" style="display:none" title="Löschen">🗑</button>
+    <button class="icon-btn" id="btn-cls" onclick="clearSel()" style="display:none" title="Abbrechen">✕</button>
+  </div>
+  <div class="folder-bar" id="folder-bar"></div>
+  <div id="grid-wrap" style="flex:1;overflow-y:auto">
+    <div class="grid" id="doc-grid"></div>
+    <div class="empty" id="empty-state" style="display:none">
+      <div class="empty-icon">🗂</div>
+      <div class="empty-text">Keine Belege</div>
+      <div class="empty-sub">Tippe auf + um einen Beleg hinzuzufügen</div>
+    </div>
+  </div>
+  <button class="fab" onclick="openUpload()">＋</button>
+</div>
+
+<!-- ══ EINSTELLUNGEN ══ -->
+<div class="screen" id="screen-settings">
+  <div class="header">
+    <div class="header-title">Einstellungen</div>
+  </div>
+  <div style="overflow-y:auto;flex:1;padding-bottom:20px">
+    <div class="settings-card">
+      <div class="settings-title">🔗 Supabase Verbindung</div>
+      <div><label>Supabase URL</label><input type="url" id="s-url" placeholder="https://xyz.supabase.co"></div>
+      <div><label>Anon Key</label><input type="password" id="s-key" placeholder="eyJ..."></div>
+      <button class="btn primary full" onclick="saveSettings()">💾 Speichern &amp; verbinden</button>
+    </div>
+    <div class="settings-card">
+      <div class="settings-title">🤖 KI-Belegscan (optional)</div>
+      <div><label>Anthropic API Key</label><input type="password" id="s-ai" placeholder="sk-ant-..."></div>
+      <p style="font-size:12px;color:var(--text3)">Ermöglicht automatische Erkennung von Beleg-Bereich, Name, Kategorie und Datum per Foto.</p>
+      <button class="btn full" onclick="saveAI()">💾 Speichern</button>
+    </div>
+    <div class="settings-card">
+      <div class="settings-title">🛠 Einmaliges Supabase Setup</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Im <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent)">Supabase SQL Editor</a> ausführen:</p>
+      <div class="sql-box">CREATE TABLE belege (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name TEXT,
+  datum DATE,
+  ordner TEXT,
+  kategorie TEXT,
+  storage_path TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE belege DISABLE ROW LEVEL SECURITY;</div>
+      <button class="btn" onclick="copySQL()" style="margin-top:6px">📋 SQL kopieren</button>
+      <p style="font-size:12px;color:var(--text2);margin-top:10px">Dann unter <b>Storage → New Bucket</b> einen Bucket namens <code style="color:var(--accent)">belege-fotos</code> anlegen (Public ✅) und dessen RLS deaktivieren.</p>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" id="tab-belege" onclick="showTab('belege')">
+    <span class="tab-icon">🧾</span>Belege
+  </button>
+  <button class="tab" id="tab-settings" onclick="showTab('settings')">
+    <span class="tab-icon">⚙️</span>Einstellungen
+  </button>
+</div>
+
+<!-- ══ MODAL UPLOAD ══ -->
+<div class="overlay" id="m-upload" onclick="bgClose(event,'m-upload')">
+  <div class="modal" style="max-width:480px">
+    <div class="mhdr">
+      <div class="mhdr-title">Beleg hinzufügen</div>
+      <button class="icon-btn" onclick="closeM('m-upload')">✕</button>
+    </div>
+    <div class="mbody">
+      <!-- S1 Auswahl -->
+      <div id="up-s1">
+        <div style="display:flex;gap:8px">
+          <button class="btn full" onclick="trigCam()" style="flex:1;flex-direction:column;gap:6px;padding:18px">
+            <span style="font-size:28px">📸</span>Kamera
+          </button>
+          <button class="btn full" onclick="trigGal()" style="flex:1;flex-direction:column;gap:6px;padding:18px">
+            <span style="font-size:28px">🖼</span>Galerie
+          </button>
+        </div>
+        <input type="file" id="fi-cam" accept="image/*" capture="environment" style="display:none" onchange="fileChosen(this.files[0])">
+        <input type="file" id="fi-gal" accept="image/*" style="display:none" onchange="fileChosen(this.files[0])">
+      </div>
+      <!-- S2 Crop -->
+      <div id="up-s2" style="display:none">
+        <div id="crop-wrap"><canvas id="crop-canvas"></canvas></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn" onclick="aiScan()" style="flex:1;justify-content:center">
+            <span class="ai-badge">KI</span> Beleg erkennen
+          </button>
+          <button class="btn" onclick="resetCrop()" style="flex:1;justify-content:center">🔄 Reset</button>
+        </div>
+        <div class="scan-row" id="scan-row" style="display:none">
+          <div class="spin"></div><span id="scan-txt">Erkenne Beleg...</span>
+        </div>
+      </div>
+      <!-- S3 Meta -->
+      <div id="up-s3" style="display:none;flex-direction:column;gap:12px">
+        <div><label>Name</label><input type="text" id="u-name" placeholder="z.B. Tankquittung Shell"></div>
+        <div><label>Datum (bestimmt den Ordner)</label><input type="date" id="u-date"></div>
+        <div>
+          <label>Kategorie</label>
+          <select id="u-cat">
+            <option value="sonstige">📄 Sonstige</option>
+            <option value="tankquittung">⛽ Tankquittung</option>
+            <option value="bueromaterial">📎 Büromaterial</option>
+            <option value="reise">✈️ Reise &amp; Transport</option>
+            <option value="bewirtung">🍽 Bewirtung</option>
+            <option value="software">💻 Software</option>
+            <option value="kommunikation">📱 Telefon &amp; Internet</option>
+            <option value="versicherung">🛡 Versicherung</option>
+          </select>
+        </div>
+        <div class="scan-row" id="ai-note" style="display:none">
+          <span>🤖</span><span id="ai-note-txt"></span>
+        </div>
+        <div id="up-prog" style="display:none">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Wird hochgeladen...</div>
+          <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closeM('m-upload')">Abbrechen</button>
+      <button class="btn success" id="btn-weiter" onclick="upNext()" style="display:none">Weiter →</button>
+      <button class="btn primary" id="btn-hochladen" onclick="doUpload()" style="display:none">⬆ Hochladen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL VORSCHAU ══ -->
+<div class="overlay" id="m-preview" onclick="bgClose(event,'m-preview')">
+  <div class="modal center" style="max-width:600px">
+    <div class="mhdr">
+      <div class="mhdr-title" id="prev-title">Vorschau</div>
+      <button class="icon-btn" onclick="closeM('m-preview')">✕</button>
+    </div>
+    <div class="mbody" style="padding:12px">
+      <img class="preview-img" id="prev-img" src="">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <span id="prev-date" style="font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:4px;font-family:'DM Mono',monospace"></span>
+        <span id="prev-folder" style="font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:4px"></span>
+        <span id="prev-cat" style="font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:4px"></span>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="moveDoc(activeDoc)">📁 Verschieben</button>
+      <button class="btn danger" onclick="deleteDoc(activeDoc);closeM('m-preview')">🗑 Löschen</button>
+      <button class="btn success" onclick="dlDoc(activeDoc)">⬇ Download</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL VERSCHIEBEN ══ -->
+<div class="overlay" id="m-move" onclick="bgClose(event,'m-move')">
+  <div class="modal" style="max-width:360px">
+    <div class="mhdr">
+      <div class="mhdr-title">Verschieben nach</div>
+      <button class="icon-btn" onclick="closeM('m-move')">✕</button>
+    </div>
+    <div class="mbody">
+      <div><label>Zielordner</label><select id="move-to"></select></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closeM('m-move')">Abbrechen</button>
+      <button class="btn primary" onclick="confirmMove()">Verschieben</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let SB='', KEY='', AIKEY='';
+let docs=[], folders=[], curFolder='all', sel=new Set(), moveDocIds=[];
+let activeDoc=null;
+let upFile=null, upImg=null, upStep=1;
+let cropBox={x:.05,y:.05,w:.9,h:.9};
+let isDrag=false, dragType='', dragStart={x:0,y:0};
+
+function init() {
+  SB   = localStorage.getItem('sb_url')||'';
+  KEY  = localStorage.getItem('sb_key')||'';
+  AIKEY= localStorage.getItem('ai_key')||'';
+  document.getElementById('s-url').value = SB;
+  document.getElementById('s-key').value = KEY;
+  document.getElementById('s-ai').value  = AIKEY;
+  if (SB && KEY) loadDocs();
+  else { showTab('settings'); toast('👆 Bitte Supabase-Daten eintragen'); }
+}
+
+function showTab(n) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('screen-'+n).classList.add('active');
+  document.getElementById('tab-'+n).classList.add('active');
+}
+
+function saveSettings() {
+  SB  = document.getElementById('s-url').value.trim().replace(/\/$/,'');
+  KEY = document.getElementById('s-key').value.trim();
+  if (!SB||!KEY) { toast('⚠ URL und Key eintragen'); return; }
+  localStorage.setItem('sb_url',SB); localStorage.setItem('sb_key',KEY);
+  toast('✅ Verbindung gespeichert'); loadDocs(); showTab('belege');
+}
+function saveAI() {
+  AIKEY=document.getElementById('s-ai').value.trim();
+  localStorage.setItem('ai_key',AIKEY); toast('✅ API Key gespeichert');
+}
+function copySQL() {
+  navigator.clipboard.writeText(document.querySelector('.sql-box').textContent);
+  toast('📋 SQL kopiert');
+}
+
+// ── SUPABASE ──
+async function sb(path,opts={}) {
+  const r=await fetch(`${SB}/rest/v1/${path}`,{
+    ...opts,
+    headers:{apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':'application/json',Prefer:'return=representation',...(opts.headers||{})}
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const ct=r.headers.get('content-type')||'';
+  return ct.includes('json')?r.json():r.text();
+}
+async function sbUp(path,blob) {
+  const r=await fetch(`${SB}/storage/v1/object/belege-fotos/${path}`,{
+    method:'POST',body:blob,
+    headers:{apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':blob.type||'image/jpeg'}
+  });
+  if (!r.ok) throw new Error(await r.text()); return r.json();
+}
+const sbUrl=path=>`${SB}/storage/v1/object/public/belege-fotos/${path}`;
+
+// ── DATA ──
+async function loadDocs() {
+  if (!SB||!KEY) return;
+  try {
+    docs=await sb('belege?order=datum.desc,created_at.desc&select=*');
+    buildFolders(); render();
+  } catch(e) { toast('⚠ Laden: '+e.message); }
+}
+
+function buildFolders() {
+  const map={};
+  docs.forEach(d=>{ const f=d.ordner||'?'; map[f]=(map[f]||0)+1; });
+  folders=Object.keys(map).sort((a,b)=>parseF(b)-parseF(a));
+  const mo=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  document.getElementById('folder-bar').innerHTML=
+    `<div class="folder-pill ${curFolder==='all'?'active':''}" onclick="setFolder('all')">📂 Alle <span style="opacity:.6">${docs.length}</span></div>`+
+    folders.map(f=>`<div class="folder-pill ${curFolder===f?'active':''}" onclick="setFolder('${esc(f)}')">
+      📁 ${f} <span style="opacity:.6">${map[f]}</span>
+      <span class="folder-pill-del" onclick="event.stopPropagation();delFolder('${esc(f)}')">🗑</span>
+    </div>`).join('');
+}
+
+const parseF=n=>{ const mo=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'],p=n.split(' '),m=mo.indexOf(p[0]),y=parseInt(p[1]); return (m>=0&&!isNaN(y))?y*12+m:0; };
+const esc=s=>s.replace(/'/g,"\\'");
+
+function setFolder(f) { curFolder=f; clearSel(); buildFolders(); render(); }
+
+function render() {
+  const filtered=curFolder==='all'?docs:docs.filter(d=>d.ordner===curFolder);
+  document.getElementById('view-title').textContent=curFolder==='all'?'Alle Belege':curFolder;
+  document.getElementById('view-sub').textContent=`${filtered.length} Beleg${filtered.length!==1?'e':''}`;
+  const grid=document.getElementById('doc-grid'), empty=document.getElementById('empty-state');
+  if (!filtered.length) { grid.style.display='none'; empty.style.display='flex'; return; }
+  grid.style.display=''; empty.style.display='none';
+  grid.innerHTML=filtered.map(d=>{
+    const img=d.storage_path?sbUrl(d.storage_path):'';
+    return `<div class="doc-card ${sel.has(d.id)?'sel':''}" data-id="${d.id}" onclick="cardTap('${d.id}',event)">
+      <div class="doc-check">✓</div>
+      <div class="doc-thumb">
+        ${img?`<img src="${img}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'doc-thumb-ph\\'>🧾</span>'">`:'<span class="doc-thumb-ph">🧾</span>'}
+      </div>
+      <div class="quick-btns">
+        <button class="qbtn" onclick="event.stopPropagation();prevDoc('${d.id}')">👁</button>
+        <button class="qbtn" onclick="event.stopPropagation();dlDoc('${d.id}')">⬇</button>
+      </div>
+      <div class="doc-info">
+        <div class="doc-name">${d.name||'Unbenannt'}</div>
+        <div class="doc-meta">
+          <span>${fmtDate(d.datum)}</span>
+          ${d.kategorie&&d.kategorie!=='sonstige'?`<span class="cat-tag cat-${d.kategorie}">${d.kategorie}</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+const fmtDate=s=>{ if(!s)return''; const d=new Date(s); return d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}); };
+
+function cardTap(id,e) { if(sel.size>0){toggleSel(id);return;} prevDoc(id); }
+
+let lpTimer=null;
+document.addEventListener('pointerdown',e=>{ const c=e.target.closest('.doc-card'); if(!c)return; lpTimer=setTimeout(()=>toggleSel(c.dataset.id),500); });
+document.addEventListener('pointerup',()=>clearTimeout(lpTimer));
+document.addEventListener('pointermove',()=>clearTimeout(lpTimer));
+
+function toggleSel(id) { if(sel.has(id))sel.delete(id); else sel.add(id); updateSelBar(); render(); }
+function clearSel() { sel.clear(); updateSelBar(); render(); }
+function updateSelBar() {
+  const on=sel.size>0;
+  ['btn-dl','btn-mv','btn-del','btn-cls'].forEach(id=>document.getElementById(id).style.display=on?'':'none');
+  if(on) document.getElementById('view-sub').textContent=`${sel.size} ausgewählt`;
+  else render();
+}
+
+function prevDoc(id) {
+  const d=docs.find(x=>x.id==id); if(!d)return; activeDoc=d;
+  document.getElementById('prev-img').src=d.storage_path?sbUrl(d.storage_path):'';
+  document.getElementById('prev-title').textContent=d.name||'Vorschau';
+  document.getElementById('prev-date').textContent=fmtDate(d.datum);
+  document.getElementById('prev-folder').textContent=d.ordner||'';
+  document.getElementById('prev-cat').textContent=d.kategorie||'';
+  openM('m-preview');
+}
+
+async function dlDoc(docOrId) {
+  const d=typeof docOrId==='object'?docOrId:docs.find(x=>x.id==docOrId);
+  if(!d?.storage_path){toast('Kein Bild');return;}
+  const a=document.createElement('a'); a.href=sbUrl(d.storage_path); a.download=(d.name||'beleg')+'.jpg'; a.target='_blank';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+async function downloadSelected() {
+  if(!sel.size)return;
+  if(sel.size===1){dlDoc([...sel][0]);return;}
+  toast('⏳ ZIP wird erstellt...');
+  try {
+    if(!window.JSZip) await new Promise((r,j)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; s.onload=r; s.onerror=j; document.head.appendChild(s); });
+    const zip=new JSZip();
+    for(const id of sel) {
+      const d=docs.find(x=>x.id==id); if(!d?.storage_path)continue;
+      const blob=await (await fetch(sbUrl(d.storage_path))).blob();
+      zip.file(`${d.ordner||'Belege'}/${(d.name||id).replace(/[^a-z0-9äöü\-_]/gi,'_')}.jpg`,blob);
+    }
+    const url=URL.createObjectURL(await zip.generateAsync({type:'blob'}));
+    Object.assign(document.createElement('a'),{href:url,download:'steuerbelege.zip'}).click();
+    URL.revokeObjectURL(url); toast(`✅ ${sel.size} Belege als ZIP`);
+  } catch(e) { toast('⚠ '+e.message); }
+}
+
+async function deleteDoc(docOrId) {
+  const d=typeof docOrId==='object'?docOrId:docs.find(x=>x.id==docOrId); if(!d)return;
+  if(!confirm(`"${d.name||'Beleg'}" löschen?`))return;
+  try {
+    if(d.storage_path) await fetch(`${SB}/storage/v1/object/belege-fotos/${d.storage_path}`,{method:'DELETE',headers:{apikey:KEY,Authorization:`Bearer ${KEY}`}});
+    await sb(`belege?id=eq.${d.id}`,{method:'DELETE'});
+    docs=docs.filter(x=>x.id!==d.id); buildFolders(); render(); toast('🗑 Gelöscht');
+  } catch(e){toast('⚠ '+e.message);}
+}
+async function deleteSelected() { if(!sel.size)return; if(!confirm(`${sel.size} Belege löschen?`))return; for(const id of [...sel]) await deleteDoc(id); clearSel(); }
+async function delFolder(name) { const fd=docs.filter(d=>d.ordner===name); if(!confirm(`Ordner "${name}" mit ${fd.length} Beleg(en) löschen?`))return; for(const d of fd) await deleteDoc(d); if(curFolder===name)setFolder('all'); }
+
+function moveDoc(docOrId) { const d=typeof docOrId==='object'?docOrId:docs.find(x=>x.id==docOrId); if(!d)return; moveDocIds=[d.id]; showMoveModal(); closeM('m-preview'); }
+function moveSelected() { if(!sel.size)return; moveDocIds=[...sel]; showMoveModal(); }
+function showMoveModal() {
+  const mo=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const now=new Date(), opts=[];
+  for(let y=now.getFullYear()-1;y<=now.getFullYear()+1;y++) for(let m=0;m<12;m++) opts.push(`${mo[m]} ${y}`);
+  folders.forEach(f=>{if(!opts.includes(f))opts.push(f);});
+  const sel2=document.getElementById('move-to');
+  sel2.innerHTML=opts.map(f=>`<option value="${f}">${f}</option>`).join('');
+  const def=`${mo[now.getMonth()]} ${now.getFullYear()}`; sel2.value=opts.includes(def)?def:opts[0];
+  openM('m-move');
+}
+async function confirmMove() {
+  const target=document.getElementById('move-to').value;
+  for(const id of moveDocIds) { await sb(`belege?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({ordner:target})}); const d=docs.find(x=>x.id==id); if(d)d.ordner=target; }
+  buildFolders(); render(); clearSel(); closeM('m-move'); toast(`✅ Nach "${target}" verschoben`);
+}
+
+// ── UPLOAD ──
+function openUpload() {
+  upStep=1; upFile=null; upImg=null;
+  ['up-s2','up-s3'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('up-s1').style.display='';
+  document.getElementById('btn-weiter').style.display='none';
+  document.getElementById('btn-hochladen').style.display='none';
+  document.getElementById('scan-row').style.display='none';
+  document.getElementById('ai-note').style.display='none';
+  document.getElementById('up-prog').style.display='none';
+  document.getElementById('btn-hochladen').disabled=false;
+  document.getElementById('u-name').value='';
+  document.getElementById('u-cat').value='sonstige';
+  openM('m-upload');
+}
+
+const trigCam=()=>{ document.getElementById('fi-cam').value=''; document.getElementById('fi-cam').click(); };
+const trigGal=()=>{ document.getElementById('fi-gal').value=''; document.getElementById('fi-gal').click(); };
+
+function fileChosen(f) {
+  if(!f)return; upFile=f;
+  getExifDate(f).then(d=>document.getElementById('u-date').value=d);
+  const r=new FileReader(); r.onload=e=>{ const img=new Image(); img.onload=()=>{ upImg=img; initCrop(img); document.getElementById('up-s1').style.display='none'; document.getElementById('up-s2').style.display=''; document.getElementById('btn-weiter').style.display=''; upStep=2; }; img.src=e.target.result; }; r.readAsDataURL(f);
+}
+
+function getExifDate(f){ return new Promise(res=>{ const r=new FileReader(); r.onload=e=>{ try{ const a=new Uint8Array(e.target.result),s=String.fromCharCode(...a.slice(0,65536)),m=s.match(/(\d{4}):(\d{2}):(\d{2}) \d{2}:\d{2}:\d{2}/); if(m){res(`${m[1]}-${m[2]}-${m[3]}`);return;} }catch{} const d=f.lastModified?new Date(f.lastModified):new Date(); res(d.toISOString().split('T')[0]); }; r.readAsArrayBuffer(f.slice(0,65536)); }); }
+
+function initCrop(img) {
+  cropBox={x:.05,y:.05,w:.9,h:.9};
+  const c=document.getElementById('crop-canvas'), wrap=document.getElementById('crop-wrap');
+  const sc=Math.min((wrap.offsetWidth||360)/img.width, 400/img.height, 1);
+  c.width=img.width*sc; c.height=img.height*sc; drawCrop(); setupCropEvents();
+}
+function drawCrop() {
+  const c=document.getElementById('crop-canvas'); if(!c||!upImg)return;
+  const ctx=c.getContext('2d'),cw=c.width,ch=c.height;
+  ctx.drawImage(upImg,0,0,cw,ch);
+  const {x,y,w,h}=cropBox,bx=x*cw,by=y*ch,bw=w*cw,bh=h*ch;
+  ctx.fillStyle='rgba(0,0,0,.55)';
+  ctx.fillRect(0,0,cw,by); ctx.fillRect(0,by+bh,cw,ch-by-bh); ctx.fillRect(0,by,bx,bh); ctx.fillRect(bx+bw,by,cw-bx-bw,bh);
+  ctx.strokeStyle='#5b8dee'; ctx.lineWidth=2; ctx.strokeRect(bx,by,bw,bh);
+  const hs=10; ctx.fillStyle='#5b8dee';
+  [[bx,by],[bx+bw-hs,by],[bx,by+bh-hs],[bx+bw-hs,by+bh-hs]].forEach(([px,py])=>ctx.fillRect(px,py,hs,hs));
+}
+function resetCrop(){cropBox={x:0,y:0,w:1,h:1};drawCrop();}
+function setupCropEvents(){
+  const c=document.getElementById('crop-canvas'),nc=c.cloneNode(true); c.parentNode.replaceChild(nc,c);
+  const cv=document.getElementById('crop-canvas');
+  const pos=e=>{ const r=cv.getBoundingClientRect(),sx=cv.width/r.width,sy=cv.height/r.height; const cx=((e.touches?e.touches[0].clientX:e.clientX)-r.left)*sx,cy=((e.touches?e.touches[0].clientY:e.clientY)-r.top)*sy; return {x:cx/cv.width,y:cy/cv.height}; };
+  const hit=p=>{ const eps=.05,{x,y,w,h}=cropBox; if(Math.abs(p.x-x)<eps&&Math.abs(p.y-y)<eps)return'tl'; if(Math.abs(p.x-(x+w))<eps&&Math.abs(p.y-y)<eps)return'tr'; if(Math.abs(p.x-x)<eps&&Math.abs(p.y-(y+h))<eps)return'bl'; if(Math.abs(p.x-(x+w))<eps&&Math.abs(p.y-(y+h))<eps)return'br'; if(p.x>x&&p.x<x+w&&p.y>y&&p.y<y+h)return'move'; return'none'; };
+  const start=e=>{e.preventDefault();isDrag=true;dragType=hit(pos(e));dragStart=pos(e);};
+  const move=e=>{ if(!isDrag)return; e.preventDefault(); const p=pos(e),dx=p.x-dragStart.x,dy=p.y-dragStart.y,b={...cropBox}; if(dragType==='move'){b.x=Math.max(0,Math.min(1-b.w,b.x+dx));b.y=Math.max(0,Math.min(1-b.h,b.y+dy));}else if(dragType==='tl'){b.x+=dx;b.y+=dy;b.w-=dx;b.h-=dy;}else if(dragType==='tr'){b.y+=dy;b.w+=dx;b.h-=dy;}else if(dragType==='bl'){b.x+=dx;b.w-=dx;b.h+=dy;}else if(dragType==='br'){b.w+=dx;b.h+=dy;} b.w=Math.max(.1,b.w);b.h=Math.max(.1,b.h);b.x=Math.max(0,Math.min(1-b.w,b.x));b.y=Math.max(0,Math.min(1-b.h,b.y));cropBox=b;dragStart=p;drawCrop(); };
+  const end=()=>isDrag=false;
+  cv.addEventListener('mousedown',start);cv.addEventListener('touchstart',start,{passive:false});
+  document.addEventListener('mousemove',move);document.addEventListener('touchmove',move,{passive:false});
+  document.addEventListener('mouseup',end);document.addEventListener('touchend',end);
+}
+
+async function aiScan(){
+  if(!AIKEY){toast('⚠ Anthropic Key in Einstellungen eintragen');return;}
+  const row=document.getElementById('scan-row'); row.style.display='flex';
+  try {
+    const b64=await toB64(upFile);
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':AIKEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:upFile.type||'image/jpeg',data:b64}},{type:'text',text:`Analysiere dieses Bild. Antworte NUR mit JSON ohne Markdown:\n{"crop":{"x":0.0,"y":0.0,"w":1.0,"h":1.0},"name":"Belegname","kategorie":"tankquittung|bueromaterial|reise|bewirtung|software|kommunikation|versicherung|sonstige","datum":"YYYY-MM-DD oder null","info":"1 Satz"}\ncrop: wo der Beleg/das Dokument im Bild liegt (0-1 normalisiert), Hintergrund wegschneiden.`}]}]})});
+    const data=await r.json(); const p=JSON.parse((data.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
+    if(p.crop)cropBox=p.crop; if(p.name)document.getElementById('u-name').value=p.name; if(p.kategorie)document.getElementById('u-cat').value=p.kategorie; if(p.datum)document.getElementById('u-date').value=p.datum;
+    drawCrop(); document.getElementById('ai-note-txt').textContent=p.info||'Beleg erkannt'; document.getElementById('ai-note').style.display='flex'; row.style.display='none'; toast('✅ Beleg erkannt');
+  } catch(e){row.style.display='none';toast('⚠ KI-Fehler: '+e.message);}
+}
+
+const toB64=f=>new Promise((r,j)=>{const rd=new FileReader();rd.onload=e=>r(e.target.result.split(',')[1]);rd.onerror=j;rd.readAsDataURL(f);});
+
+function upNext(){
+  document.getElementById('up-s3').style.display='flex'; document.getElementById('btn-weiter').style.display='none'; document.getElementById('btn-hochladen').style.display='';
+  if(!document.getElementById('u-name').value&&upFile?.name) document.getElementById('u-name').value=upFile.name.replace(/\.[^.]+$/,'');
+  upStep=3;
+}
+
+async function doUpload(){
+  const name=document.getElementById('u-name').value.trim()||'Unbenannt';
+  const date=document.getElementById('u-date').value, kat=document.getElementById('u-cat').value;
+  if(!date){toast('⚠ Datum wählen');return;} if(!upFile){toast('⚠ Kein Bild');return;}
+  const mo=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const d=new Date(date), ordner=`${mo[d.getMonth()]} ${d.getFullYear()}`;
+  const blob=await cropBlob();
+  document.getElementById('up-prog').style.display=''; document.getElementById('btn-hochladen').disabled=true;
+  const pf=document.getElementById('prog-fill');
+  try {
+    pf.style.width='20%';
+    const path=`${ordner}/${Date.now()}_${name.replace(/[^a-z0-9äöü]/gi,'_')}.jpg`;
+    await sbUp(path,blob); pf.style.width='65%';
+    const ins=await sb('belege',{method:'POST',body:JSON.stringify({name,datum:date,ordner,kategorie:kat,storage_path:path})});
+    pf.style.width='100%'; docs.unshift(ins[0]||{id:Date.now(),name,datum:date,ordner,kategorie:kat,storage_path:path});
+    buildFolders(); render(); closeM('m-upload'); toast(`✅ In "${ordner}" gespeichert`);
+  } catch(e){toast('⚠ Upload: '+e.message);document.getElementById('btn-hochladen').disabled=false;pf.style.width='0%';}
+}
+
+const cropBlob=()=>new Promise(res=>{const cv=document.createElement('canvas'),img=upImg,sw=Math.round(cropBox.w*img.width),sh=Math.round(cropBox.h*img.height);cv.width=sw;cv.height=sh;cv.getContext('2d').drawImage(img,cropBox.x*img.width,cropBox.y*img.height,sw,sh,0,0,sw,sh);cv.toBlob(res,'image/jpeg',.92);});
+
+const openM=id=>document.getElementById(id).classList.add('open');
+const closeM=id=>document.getElementById(id).classList.remove('open');
+function bgClose(e,id){if(e.target===document.getElementById(id))closeM(id);}
+
+function toast(msg,ms=3000){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
+
+init();
+</script>
+</body>
+</html>
