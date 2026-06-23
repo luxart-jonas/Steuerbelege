@@ -1,7 +1,7 @@
 {
   "name": "Steuerbelege",
   "short_name": "Belege",
-  "start_url": "./steuer-belege-v4.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#c0392b",
