@@ -62,8 +62,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .doc-thumb{height:110px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
 .doc-thumb img{width:100%;height:100%;object-fit:cover;}
 .doc-thumb-ph{font-size:36px;opacity:.4;}
-.doc-check{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;background:var(--accent);border:2px solid white;display:none;align-items:center;justify-content:center;font-size:11px;color:white;z-index:2;}
-.doc-card.sel .doc-check{display:flex;}
+.doc-check{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;background:rgba(30,33,45,.7);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-size:11px;color:white;z-index:2;cursor:pointer;}
+.doc-card.sel .doc-check{background:var(--accent);border-color:white;}
 .quick-btns{position:absolute;top:5px;right:5px;display:flex;gap:3px;opacity:0;transition:opacity .15s;}
 .doc-card:hover .quick-btns{opacity:1;}
 .qbtn{background:rgba(0,0,0,.7);border:none;border-radius:5px;padding:3px 6px;font-size:13px;cursor:pointer;color:white;}
@@ -127,7 +127,7 @@ input[type=password]{font-family:'DM Mono',monospace;}
 <body>
 
 <!-- LOCK SCREEN -->
-<div id="lock-screen">
+<div id="lock-screen" style="display:none">
   <div class="lock-icon">🧾</div>
   <div class="lock-title">Steuerbelege</div>
   <div class="lock-sub">Entsperren um fortzufahren</div>
@@ -172,12 +172,7 @@ input[type=password]{font-family:'DM Mono',monospace;}
       <div><label>Anon Key</label><input type="password" id="s-key" placeholder="sb_publishable_..."></div>
       <button class="btn primary full" onclick="saveSettings()">💾 Speichern</button>
     </div>
-    <div class="settings-card">
-      <div class="settings-title">👆 Fingerabdruck / Face ID</div>
-      <p style="font-size:12px;color:var(--text2)">Beim nächsten Start wird Fingerabdruck oder Face ID zum Entsperren verwendet.</p>
-      <button class="btn full" onclick="setupBiometric()">🔐 Einrichten</button>
-      <div id="bio-status" style="font-size:12px;color:var(--text3);text-align:center"></div>
-    </div>
+
   </div>
 </div>
 
@@ -375,7 +370,6 @@ function init() {
   KEY = localStorage.getItem('sb_key')||'';
   document.getElementById('s-url').value = SB;
   document.getElementById('s-key').value = KEY;
-  checkBiometric();
   if (SB && KEY) loadDocs();
   else showTab('settings');
 }
@@ -452,8 +446,8 @@ function render() {
   grid.innerHTML=filtered.map(d=>{
     const img=d.storage_path&&isImage(d.mime_type,d.name)?sbUrl(d.storage_path):'';
     const icon=fileIcon(d.mime_type,d.name);
-    return `<div class="doc-card ${sel.has(d.id)?'sel':''}" data-id="${d.id}" onclick="cardTap('${d.id}',event)">
-      <div class="doc-check">✓</div>
+    return `<div class="doc-card ${sel.has(d.id)?'sel':''}" data-id="${d.id}" onclick="cardTap('${d.id}',event)" onpointerdown="startLP('${d.id}')" onpointerup="stopLP()" onpointermove="stopLP()">
+      <div class="doc-check" onclick="event.stopPropagation();toggleSel('${d.id}')">✓</div>
       <div class="doc-thumb">
         ${img?`<img src="${img}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'doc-thumb-ph\\'>${icon}</span>'">`:`<span class="doc-thumb-ph">${icon}</span>`}
       </div>
@@ -572,7 +566,8 @@ async function dlAsZip(items, zipName='steuerbelege'){
     for(const d of items){
       if(!d.storage_path)continue;
       const blob=await(await fetch(sbUrl(d.storage_path))).blob();
-      const fname=(d.name||String(d.id)).replace(/[^a-z0-9äöü\.\-_]/gi,'_');
+      const origExt=d.storage_path.split('.').pop();
+      const fname=(d.name||String(d.id)).replace(/[^a-z0-9äöü\.\-_]/gi,'_')+'.'+origExt;
       zip.file(`${d.ordner||'Belege'}/${fname}`,blob);
     }
     const url=URL.createObjectURL(await zip.generateAsync({type:'blob'}));
