@@ -139,7 +139,7 @@ input[type=password]{font-family:'DM Mono',monospace;}
 </div>
 
 <!-- BELEGE -->
-<div class="screen" id="screen-belege">
+<div class="screen active" id="screen-belege">
   <div class="header">
     <span style="font-size:22px">🧾</span>
     <div style="flex:1">
@@ -371,7 +371,7 @@ function init() {
   document.getElementById('s-url').value = SB;
   document.getElementById('s-key').value = KEY;
   if (SB && KEY) loadDocs();
-  else showTab('settings');
+  else setTimeout(()=>toast('👆 Supabase-Daten in Einstellungen eintragen'), 800);
 }
 
 function showTab(n) {
@@ -446,7 +446,7 @@ function render() {
   grid.innerHTML=filtered.map(d=>{
     const img=d.storage_path&&isImage(d.mime_type,d.name)?sbUrl(d.storage_path):'';
     const icon=fileIcon(d.mime_type,d.name);
-    return `<div class="doc-card ${sel.has(d.id)?'sel':''}" data-id="${d.id}" onclick="cardTap('${d.id}',event)" onpointerdown="startLP('${d.id}')" onpointerup="stopLP()" onpointermove="stopLP()">
+    return `<div class="doc-card ${sel.has(d.id)?'sel':''}" data-id="${d.id}" onclick="cardTap('${d.id}',event)">
       <div class="doc-check" onclick="event.stopPropagation();toggleSel('${d.id}')">✓</div>
       <div class="doc-thumb">
         ${img?`<img src="${img}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'doc-thumb-ph\\'>${icon}</span>'">`:`<span class="doc-thumb-ph">${icon}</span>`}
@@ -464,7 +464,7 @@ function render() {
 }
 
 // ── SELECT ──
-function cardTap(id,e){if(sel.size>0){toggleSel(id);return;}prevDoc(id);}
+function cardTap(id,e){if(e.target.closest('.doc-check'))return;prevDoc(id);}
 
 let lpTimer=null;
 document.addEventListener('pointerdown',e=>{const c=e.target.closest('.doc-card');if(!c)return;lpTimer=setTimeout(()=>toggleSel(c.dataset.id),500);});
