@@ -203,25 +203,18 @@ input[type=password]{font-family:'DM Mono',monospace;}
             <span style="font-size:28px">🎬</span>Video
           </button>
           <button class="btn full" onclick="trigFile()" style="flex-direction:column;gap:6px;padding:18px;grid-column:1/-1">
-            <span style="font-size:28px">📂</span>Datei auswählen
+            <span style="font-size:28px">📂</span>Mehrere Dateien auswählen
           </button>
         </div>
-        <input type="file" id="fi-cam" accept="image/*" capture="environment" style="display:none" onchange="fileChosen(this.files[0])">
-        <input type="file" id="fi-vid" accept="video/*" capture="environment" style="display:none" onchange="fileChosen(this.files[0])">
-        <input type="file" id="fi-file" accept="*/*" style="display:none" onchange="fileChosen(this.files[0])">
+        <input type="file" id="fi-cam" accept="image/*" capture="environment" style="display:none" onchange="filesChosen(this.files)">
+        <input type="file" id="fi-vid" accept="video/*" capture="environment" style="display:none" onchange="filesChosen(this.files)">
+        <input type="file" id="fi-file" accept="*/*" multiple style="display:none" onchange="filesChosen(this.files)">
       </div>
-      <div id="up-s2" style="display:none;flex-direction:column;gap:12px">
-        <div id="up-preview" style="background:var(--surface2);border-radius:var(--rs);padding:14px;display:flex;align-items:center;gap:12px">
-          <span id="up-icon" style="font-size:32px">📄</span>
-          <div>
-            <div id="up-fname" style="font-size:13px;font-weight:500;color:var(--text)"></div>
-            <div id="up-fsize" style="font-size:11px;color:var(--text3);margin-top:2px"></div>
-          </div>
-        </div>
-        <div><label>Name</label><input type="text" id="u-name" placeholder="z.B. Tankquittung Shell"></div>
-        <div><label>Datum → bestimmt den Ordner</label><input type="date" id="u-date"></div>
+      <div id="up-s2" style="display:none;flex-direction:column;gap:10px">
+        <!-- file queue list -->
+        <div id="up-queue" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto"></div>
         <div id="up-prog" style="display:none">
-          <div style="font-size:12px;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:8px"><div class="spin"></div> Wird hochgeladen...</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;gap:8px"><div class="spin"></div><span id="up-prog-txt">Wird hochgeladen...</span></div>
           <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
         </div>
       </div>
@@ -616,14 +609,15 @@ async function confirmMove(){
 }
 
 // ── UPLOAD ──
+let upQueue=[];
+
 function openUpload(){
-  upFile=null;
+  upQueue=[];
   document.getElementById('up-s1').style.display='';
   document.getElementById('up-s2').style.display='none';
   document.getElementById('btn-hochladen').style.display='none';
   document.getElementById('up-prog').style.display='none';
   document.getElementById('btn-hochladen').disabled=false;
-  document.getElementById('u-name').value='';
   ['fi-cam','fi-vid','fi-file'].forEach(id=>document.getElementById(id).value='');
   openM('m-upload');
 }
@@ -632,21 +626,37 @@ const trigCam=()=>document.getElementById('fi-cam').click();
 const trigVid=()=>document.getElementById('fi-vid').click();
 const trigFile=()=>document.getElementById('fi-file').click();
 
-function fileChosen(f){
-  if(!f)return;upFile=f;
-  document.getElementById('u-name').value=f.name.replace(/\.[^.]+$/,'').replace(/[_\-]/g,' ');
-  const d=f.lastModified?new Date(f.lastModified):new Date();
-  if(f.type.startsWith('image/')){
-    getExifDate(f).then(dt=>document.getElementById('u-date').value=dt);
-  } else {
-    document.getElementById('u-date').value=d.toISOString().split('T')[0];
+async function filesChosen(files){
+  if(!files||!files.length)return;
+  const now=new Date();
+  for(const f of files){
+    let date;
+    if(f.type.startsWith('image/')){
+      date=await getExifDate(f);
+    } else {
+      date=f.lastModified?new Date(f.lastModified).toISOString().split('T')[0]:now.toISOString().split('T')[0];
+    }
+    upQueue.push({file:f, date, name:f.name.replace(/\.[^.]+$/,'').replace(/[_\-]/g,' ')});
   }
-  document.getElementById('up-icon').textContent=fileIcon(f.type,f.name);
-  document.getElementById('up-fname').textContent=f.name;
-  document.getElementById('up-fsize').textContent=fmtSize(f.size);
+  renderQueue();
   document.getElementById('up-s1').style.display='none';
   document.getElementById('up-s2').style.display='flex';
   document.getElementById('btn-hochladen').style.display='';
+}
+
+function fileChosen(f){ if(f) filesChosen([f]); }
+
+function renderQueue(){
+  const el=document.getElementById('up-queue');
+  el.innerHTML=upQueue.map((item,i)=>`
+    <div style="background:var(--surface2);border-radius:var(--rs);padding:10px 12px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:22px;flex-shrink:0">${fileIcon(item.file.type,item.file.name)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.file.name}</div>
+        <div style="font-size:10px;color:var(--text3)">${fmtSize(item.file.size)} · ${item.date}</div>
+      </div>
+      <button onclick="upQueue.splice(${i},1);renderQueue();if(!upQueue.length){document.getElementById('up-s1').style.display='';document.getElementById('up-s2').style.display='none';document.getElementById('btn-hochladen').style.display='none';}" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px">✕</button>
+    </div>`).join('');
 }
 
 function getExifDate(f){return new Promise(res=>{
@@ -657,22 +667,28 @@ function getExifDate(f){return new Promise(res=>{
 });}
 
 async function doUpload(){
-  const name=document.getElementById('u-name').value.trim()||upFile?.name||'Unbenannt';
-  const date=document.getElementById('u-date').value;
-  if(!date){toast('⚠ Datum wählen');return;}if(!upFile){toast('⚠ Keine Datei');return;}
-  const d=new Date(date),ordner=`${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  const ext=upFile.name.split('.').pop();
-  const path=`${ordner}/${Date.now()}_${name.replace(/[^a-z0-9äöü]/gi,'_')}.${ext}`;
-  document.getElementById('up-prog').style.display='';document.getElementById('btn-hochladen').disabled=true;
+  if(!upQueue.length){toast('⚠ Keine Dateien');return;}
+  document.getElementById('up-prog').style.display='';
+  document.getElementById('btn-hochladen').disabled=true;
   const pf=document.getElementById('prog-fill');
-  try{
-    pf.style.width='20%';
-    await sbUpload(path,upFile);pf.style.width='65%';
-    const ins=await sbFetch('belege',{method:'POST',body:JSON.stringify({name,datum:date,ordner,mime_type:upFile.type,storage_path:path})});
-    pf.style.width='100%';
-    docs.unshift(ins[0]||{id:Date.now(),name,datum:date,ordner,mime_type:upFile.type,storage_path:path});
-    buildFolders();render();closeM('m-upload');toast(`✅ In "${ordner}" gespeichert`);
-  }catch(e){toast('⚠ Upload: '+e.message);console.error(e);document.getElementById('btn-hochladen').disabled=false;pf.style.width='0%';}
+  const total=upQueue.length; let done=0; let errors=0;
+  for(const item of upQueue){
+    const f=item.file, date=item.date, name=item.name||f.name.replace(/\.[^.]+$/,'')||'Unbenannt';
+    const d=new Date(date), ordner=`${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const ext=f.name.split('.').pop();
+    const path=`${ordner}/${Date.now()}_${name.replace(/[^a-z0-9äöü]/gi,'_')}.${ext}`;
+    document.getElementById('up-prog-txt').textContent=`${done+1} von ${total}: ${f.name}`;
+    try{
+      await sbUpload(path,f);
+      const ins=await sbFetch('belege',{method:'POST',body:JSON.stringify({name,datum:date,ordner,mime_type:f.type,storage_path:path})});
+      docs.unshift(ins[0]||{id:Date.now(),name,datum:date,ordner,mime_type:f.type,storage_path:path});
+      done++;
+    }catch(e){errors++;console.error(e);}
+    pf.style.width=((done+errors)/total*100)+'%';
+  }
+  buildFolders();render();closeM('m-upload');
+  if(errors) toast(`⚠ ${done} hochgeladen, ${errors} fehlgeschlagen`);
+  else toast(`✅ ${done} Datei${done!==1?'en':''} hochgeladen`);
 }
 
 // Drop
