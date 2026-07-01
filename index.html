@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0f1117">
 <title>Steuerbelege</title>
 <link rel="manifest" href="manifest.json">
@@ -364,9 +365,42 @@ function init() {
   KEY = localStorage.getItem('sb_key')||'';
   document.getElementById('s-url').value = SB;
   document.getElementById('s-key').value = KEY;
-  loadCustomFolders();
-  if (SB && KEY) loadDocs();
-  else { buildFolders(); setTimeout(()=>toast('👆 Supabase-Daten in Einstellungen eintragen'), 800); }
+  if (SB && KEY) loadAll();
+  else setTimeout(()=>toast('👆 Supabase-Daten in Einstellungen eintragen'), 800);
+}
+
+async function loadAll() {
+  await loadCustomFolders();
+  await loadDocs();
+}
+
+async function loadCustomFolders() {
+  try {
+    const rows = await sbFetch('belege_ordner?order=name.asc&select=name');
+    customFolders = rows.map(r=>r.name);
+    buildFolders();
+  } catch(e) { console.log('Ordner laden:', e.message); customFolders=[]; }
+}
+
+async function saveCustomFolder(name) {
+  await sbFetch('belege_ordner', {method:'POST', body:JSON.stringify({name})});
+}
+
+async function deleteCustomFolder(name) {
+  await sbFetch(`belege_ordner?name=eq.${encodeURIComponent(name)}`, {method:'DELETE'});
+}
+
+async function newFolder() {
+  const name = prompt('Ordner-Name:','');
+  if (!name||!name.trim()) return;
+  const n = name.trim();
+  if (customFolders.includes(n)) { toast('Ordner existiert bereits'); return; }
+  try {
+    await saveCustomFolder(n);
+    customFolders.push(n);
+    buildFolders();
+    toast('📁 Ordner "'+n+'" angelegt');
+  } catch(e) { toast('⚠ '+e.message); }
 }
 
 function showTab(n) {
@@ -374,18 +408,6 @@ function showTab(n) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+n).classList.add('active');
   document.getElementById('tab-'+n).classList.add('active');
-}
-function loadCustomFolders(){try{customFolders=JSON.parse(localStorage.getItem('custom_folders')||'[]');}catch{customFolders=[];}}
-function saveCustomFolders(){localStorage.setItem('custom_folders',JSON.stringify(customFolders));}
-function newFolder(){
-  const name=prompt('Ordner-Name:','');
-  if(!name||!name.trim())return;
-  const n=name.trim();
-  if(customFolders.includes(n)||folders.includes(n)){toast('Ordner existiert bereits');return;}
-  customFolders.push(n);
-  saveCustomFolders();
-  buildFolders();
-  toast('📁 Ordner "'+n+'" angelegt');
 }
 
 function saveSettings() {
@@ -419,12 +441,10 @@ async function loadDocs() {
 function buildFolders() {
   const map={};
   docs.forEach(d=>{const f=d.ordner||'?';map[f]=(map[f]||0)+1;});
-  // Eigene Ordner auch anzeigen wenn leer
   customFolders.forEach(f=>{if(map[f]===undefined)map[f]=0;});
-  // Eigene Ordner oben, Monate darunter absteigend
-  const custom=customFolders.filter(f=>map[f]!==undefined).sort((a,b)=>a.localeCompare(b,'de'));
   const monthF=Object.keys(map).filter(f=>parseF(f)>0).sort((a,b)=>parseF(b)-parseF(a));
-  folders=[...custom,...monthF];
+  const otherF=Object.keys(map).filter(f=>parseF(f)===0&&!customFolders.includes(f));
+  folders=[...customFolders,...otherF,...monthF];
   document.getElementById('folder-bar').innerHTML=
     `<div class="folder-pill ${curFolder==='all'?'active':''}" onclick="setFolder('all')">📂 Alle <span style="opacity:.6">${docs.length}</span></div>`+
     folders.map(f=>`<div class="folder-pill ${curFolder===f?'active':''}">
@@ -604,13 +624,20 @@ async function deleteDoc(docOrId){
 async function deleteSelected(){if(!sel.size)return;if(!confirm(`${sel.size} Belege löschen?`))return;for(const id of[...sel])await deleteDoc(id);clearSel();}
 async function delFolder(name){
   const fd=docs.filter(d=>d.ordner===name);
-  if(!confirm(`Ordner "${name}" mit ${fd.length} Datei(en) löschen?`))return;
-  for(const d of fd)await deleteDoc(d);
-  if(curFolder===name)setFolder('all');
+  const msg=fd.length>0?`Ordner "${name}" mit ${fd.length} Datei(en) löschen?`:`Leeren Ordner "${name}" löschen?`;
+  if(!confirm(msg))return;
+  for(const d of fd) await deleteDoc(d);
+  if(customFolders.includes(name)){
+    try{ await deleteCustomFolder(name); }catch(e){ console.log(e); }
+    customFolders=customFolders.filter(f=>f!==name);
+  }
+  if(curFolder===name) setFolder('all');
+  else buildFolders();
 }
 
 // ── MOVE ──
 function moveDoc(docOrId){const d=typeof docOrId==='object'?docOrId:docs.find(x=>x.id==docOrId);if(!d)return;moveDocIds=[d.id];showMoveModal();closeM('m-preview');}
+function moveSelected(){if(!sel.size){toast('Nichts ausgewählt');return;}moveDocIds=[...sel];showMoveModal();}
 function moveSelected(){if(!sel.size){toast('Nichts ausgewählt');return;}moveDocIds=[...sel];showMoveModal();}
 function showMoveModal(){
   const now=new Date(),opts=[];
