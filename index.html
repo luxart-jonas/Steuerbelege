@@ -278,7 +278,7 @@ const BUCKET='belege-foto';
 const MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
 let SB='',KEY='';
-let docs=[],folders=[],curFolder='all',sel=new Set(),moveDocIds=[],activeDoc=null,upFile=null;
+let docs=[],folders=[],customFolders=[],curFolder='all',sel=new Set(),moveDocIds=[],activeDoc=null,upFile=null;
 
 // ── BIOMETRIC / LOCK ──
 async function checkBiometric() {
@@ -364,8 +364,9 @@ function init() {
   KEY = localStorage.getItem('sb_key')||'';
   document.getElementById('s-url').value = SB;
   document.getElementById('s-key').value = KEY;
+  loadCustomFolders();
   if (SB && KEY) loadDocs();
-  else setTimeout(()=>toast('👆 Supabase-Daten in Einstellungen eintragen'), 800);
+  else { buildFolders(); setTimeout(()=>toast('👆 Supabase-Daten in Einstellungen eintragen'), 800); }
 }
 
 function showTab(n) {
@@ -373,6 +374,18 @@ function showTab(n) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('screen-'+n).classList.add('active');
   document.getElementById('tab-'+n).classList.add('active');
+}
+function loadCustomFolders(){try{customFolders=JSON.parse(localStorage.getItem('custom_folders')||'[]');}catch{customFolders=[];}}
+function saveCustomFolders(){localStorage.setItem('custom_folders',JSON.stringify(customFolders));}
+function newFolder(){
+  const name=prompt('Ordner-Name:','');
+  if(!name||!name.trim())return;
+  const n=name.trim();
+  if(customFolders.includes(n)||folders.includes(n)){toast('Ordner existiert bereits');return;}
+  customFolders.push(n);
+  saveCustomFolders();
+  buildFolders();
+  toast('📁 Ordner "'+n+'" angelegt');
 }
 
 function saveSettings() {
@@ -406,14 +419,20 @@ async function loadDocs() {
 function buildFolders() {
   const map={};
   docs.forEach(d=>{const f=d.ordner||'?';map[f]=(map[f]||0)+1;});
-  folders=Object.keys(map).sort((a,b)=>parseF(b)-parseF(a));
+  // Eigene Ordner auch anzeigen wenn leer
+  customFolders.forEach(f=>{if(map[f]===undefined)map[f]=0;});
+  // Eigene Ordner oben, Monate darunter absteigend
+  const custom=customFolders.filter(f=>map[f]!==undefined).sort((a,b)=>a.localeCompare(b,'de'));
+  const monthF=Object.keys(map).filter(f=>parseF(f)>0).sort((a,b)=>parseF(b)-parseF(a));
+  folders=[...custom,...monthF];
   document.getElementById('folder-bar').innerHTML=
     `<div class="folder-pill ${curFolder==='all'?'active':''}" onclick="setFolder('all')">📂 Alle <span style="opacity:.6">${docs.length}</span></div>`+
     folders.map(f=>`<div class="folder-pill ${curFolder===f?'active':''}">
-      <span onclick="setFolder('${esc(f)}')" style="flex:1">📁 ${f} <span style="opacity:.6">${map[f]}</span></span>
-      <span class="fpill-btn" onclick="dlFolder('${esc(f)}')" title="Ordner downloaden">⬇</span>
-      <span class="fpill-btn" onclick="delFolder('${esc(f)}')" title="Ordner löschen" style="color:var(--red)">🗑</span>
-    </div>`).join('');
+      <span onclick="setFolder('${esc(f)}')" style="flex:1">${customFolders.includes(f)?'🗂':'📁'} ${f} <span style="opacity:.6">${map[f]}</span></span>
+      <span class="fpill-btn" onclick="dlFolder('${esc(f)}')" title="Downloaden">⬇</span>
+      <span class="fpill-btn" onclick="delFolder('${esc(f)}')" title="Löschen" style="color:var(--red)">🗑</span>
+    </div>`).join('')+
+    `<div class="folder-pill" onclick="newFolder()" style="border-style:dashed;color:var(--accent);border-color:var(--accent)">＋ Ordner</div>`;
 }
 
 const parseF=n=>{const p=n.split(' '),m=MONTHS.indexOf(p[0]),y=parseInt(p[1]);return(m>=0&&!isNaN(y))?y*12+m:0;};
@@ -458,7 +477,7 @@ function render() {
 }
 
 // ── SELECT ──
-function cardTap(id,e){if(e.target.closest('.doc-check')||e.target.closest('.qbtn'))return;toggleSel(id);}
+function cardTap(id,e){if(e.target.closest('.doc-check')||e.target.closest('.qbtn'))return;prevDoc(id);}
 
 let lpTimer=null;
 document.addEventListener('pointerdown',e=>{const c=e.target.closest('.doc-card');if(!c)return;lpTimer=setTimeout(()=>toggleSel(c.dataset.id),500);});
@@ -595,6 +614,7 @@ function moveDoc(docOrId){const d=typeof docOrId==='object'?docOrId:docs.find(x=
 function moveSelected(){if(!sel.size){toast('Nichts ausgewählt');return;}moveDocIds=[...sel];showMoveModal();}
 function showMoveModal(){
   const now=new Date(),opts=[];
+  customFolders.forEach(f=>{if(!opts.includes(f))opts.push(f);});
   for(let y=now.getFullYear()-1;y<=now.getFullYear()+1;y++) for(let m=0;m<12;m++) opts.push(`${MONTHS[m]} ${y}`);
   folders.forEach(f=>{if(!opts.includes(f))opts.push(f);});
   const s=document.getElementById('move-to');
@@ -611,7 +631,7 @@ async function confirmMove(){
       const d=docs.find(x=>x.id==id);if(d){d.ordner=target;moved++;}
     }catch(e){console.error(e);}
   }
-  buildFolders();clearSel();closeM('m-move');toast(`✅ ${moved} Datei${moved!==1?'en':''} nach "${target}" verschoben`);
+  buildFolders();render();clearSel();closeM('m-move');toast(`✅ ${moved} Datei${moved!==1?'en':''} nach "${target}" verschoben`);
 }
 
 // ── UPLOAD ──
